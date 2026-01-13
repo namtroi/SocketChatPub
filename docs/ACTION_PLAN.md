@@ -7,7 +7,7 @@ This document outlines the step-by-step plan to implement SocketChat based on `d
 
 ### Checklist
 - [ ] **Project Setup**
-    - [ ] `npm init` and install dependencies: `express`, `mongoose`, `dotenv`, `cors`, `helmet`.
+    - [x] `npm init` and install dependencies: `express`, `mongoose`, `dotenv`, `cors`, `helmet`.
     - [ ] Setup TypeScript configuration (`tsconfig.json`).
     - [ ] Create folder structure: `src/{controllers, models, routes, services, config}`.
 - [ ] **Database (MongoDB)**
