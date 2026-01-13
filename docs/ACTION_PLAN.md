@@ -27,16 +27,16 @@ This document outlines the step-by-step plan to implement SocketChat based on `d
 
 ### Checklist
 - [ ] **Redis Setup**
-    - [ ] Install `redis` (client).
-    - [ ] Create Redis Client singleton.
-    - [ ] Implement Pub/Sub helper classes.
+    - [x] Install `redis` (client).
+    - [x] Create Redis Client singleton.
+    - [x] Implement Pub/Sub helper classes.
 - [ ] **WebSocket Server**
-    - [ ] Install `ws` library.
-    - [ ] Initialize `WebSocketServer` attached to HTTP server.
-    - [ ] Implement `Client` class to wrap `ws` connection with `userId`.
+    - [x] Install `ws` library.
+    - [x] Initialize `WebSocketServer` attached to HTTP server.
+    - [x] Implement `Client` class to wrap `ws` connection with `userId`.
 - [ ] **Messaging Logic**
-    - [ ] Connect `POST /chat/message` to WebSocket Broadcaster.
-    - [ ] Implement `NEW_MESSAGE` event broadcast.
+    - [x] Connect `POST /chat/message` to WebSocket Broadcaster.
+    - [x] Implement `NEW_MESSAGE` event broadcast.
 - [ ] **Presence/Heartbeat System**
     - [ ] Implement `HEARTBEAT` handler.
     - [ ] Redis keys: `SET user:{id}:online "1" EX 10`.

@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import Conversation from '../models/Conversation';
 import Message from '../models/Message';
+import { pubSubService } from '../services/PubSubService';
 
 
 export const createGroup = async (req: Request, res: Response): Promise<void> => {
@@ -51,6 +52,11 @@ export const sendMessage = async (req: Request, res: Response): Promise<void> =>
     });
 
     const savedMessage = await newMessage.save();
+
+    await pubSubService.publish('chat:message', {
+      type: 'NEW_MESSAGE',
+      data: savedMessage
+    });
 
     res.status(200).json({
       message_id: savedMessage._id,
