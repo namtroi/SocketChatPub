@@ -6,15 +6,19 @@ This document outlines the step-by-step plan to implement SocketChat based on `d
 **Goal:** Establish the Express server, MongoDB connection, and implement the REST endpoints based on the contract.
 
 ### Checklist
-- [ ] **Project Setup**
+- [x] **Project Setup**
     - [x] `npm init` and install dependencies: `express`, `mongoose`, `dotenv`, `cors`, `helmet`.
-    - [ ] Setup TypeScript configuration (`tsconfig.json`).
-    - [ ] Create folder structure: `src/{controllers, models, routes, services, config}`.
+    - [x] Setup TypeScript configuration (`tsconfig.json`).
+    - [x] Create folder structure: `src/{controllers, models, routes, services, config}`.
 - [ ] **Database (MongoDB)**
-    - [ ] Setup `mongoose` connection logic.
-    - [ ] Create `User` schema (for hardcoded simulation).
-    - [ ] Create `Conversation` schema.
-    - [ ] Create `Message` schema.
+    - [x] Setup `mongoose` connection logic.
+
+    - [x] Create `User` schema (for hardcoded simulation).
+
+    - [x] Create `Conversation` schema.
+
+    - [x] Create `Message` schema.
+
 - [ ] **REST Implementation**
     - [ ] Implement `POST /chat/group` (Create Group).
     - [ ] Implement `POST /chat/message` (Send Message logic - DB part only).
