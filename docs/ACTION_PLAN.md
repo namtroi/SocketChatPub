@@ -10,20 +10,17 @@ This document outlines the step-by-step plan to implement SocketChat based on `d
     - [x] `npm init` and install dependencies: `express`, `mongoose`, `dotenv`, `cors`, `helmet`.
     - [x] Setup TypeScript configuration (`tsconfig.json`).
     - [x] Create folder structure: `src/{controllers, models, routes, services, config}`.
-- [ ] **Database (MongoDB)**
+- [x] **Database (MongoDB)**
     - [x] Setup `mongoose` connection logic.
-
     - [x] Create `User` schema (for hardcoded simulation).
-
     - [x] Create `Conversation` schema.
-
     - [x] Create `Message` schema.
 
-- [ ] **REST Implementation**
-    - [ ] Implement `POST /chat/group` (Create Group).
-    - [ ] Implement `POST /chat/message` (Send Message logic - DB part only).
-    - [ ] Implement `GET /chat/history` (Pagination logic).
-    - [ ] **Verification**: Test endpoints with Postman/curl.
+- [x] **REST Implementation**
+    - [x] Implement `POST /chat/group` (Create Group).
+    - [x] Implement `POST /chat/message` (Send Message logic - DB part only).
+    - [x] Implement `GET /chat/history` (Pagination logic).
+    - [x] **Verification**: Test endpoints with Postman/curl.
 
 ## Phase 2: Real-time Layer (Redis + WebSocket)
 **Goal:** Implement the WebSocket server for real-time messaging and presence using Redis for state/pub-sub.
