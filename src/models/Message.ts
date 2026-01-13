@@ -1,15 +1,15 @@
 import mongoose, { Schema, Document } from 'mongoose';
 
 export interface IMessage {
-  conversation_id: mongoose.Types.ObjectId;
-  sender_id: string; // custom ID like 'u1'
+  conversation_id: string; // Changed from ObjectId to String to support custom IDs
+  sender_id: string; 
   content: string;
   createdAt?: Date;
 }
 
 const MessageSchema = new Schema<IMessage>(
   {
-    conversation_id: { type: Schema.Types.ObjectId, ref: 'Conversation', required: true },
+    conversation_id: { type: String, ref: 'Conversation', required: true },
     sender_id: { type: String, ref: 'User', required: true },
     content: { type: String, required: true },
   },

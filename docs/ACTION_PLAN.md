@@ -26,18 +26,18 @@ This document outlines the step-by-step plan to implement SocketChat based on `d
 **Goal:** Implement the WebSocket server for real-time messaging and presence using Redis for state/pub-sub.
 
 ### Checklist
-- [ ] **Redis Setup**
+- [x] **Redis Setup**
     - [x] Install `redis` (client).
     - [x] Create Redis Client singleton.
     - [x] Implement Pub/Sub helper classes.
-- [ ] **WebSocket Server**
+- [x] **WebSocket Server**
     - [x] Install `ws` library.
     - [x] Initialize `WebSocketServer` attached to HTTP server.
     - [x] Implement `Client` class to wrap `ws` connection with `userId`.
-- [ ] **Messaging Logic**
+- [x] **Messaging Logic**
     - [x] Connect `POST /chat/message` to WebSocket Broadcaster.
     - [x] Implement `NEW_MESSAGE` event broadcast.
-- [ ] **Presence/Heartbeat System**
+- [x] **Presence/Heartbeat System**
     - [x] Implement `HEARTBEAT` handler.
     - [x] Redis keys: `SET user:{id}:online "1" EX 10`.
     - [x] Implement Presence Monitoring (Interval or Keyspace Notifications) to trigger `PRESENCE_UPDATE`.
@@ -46,13 +46,13 @@ This document outlines the step-by-step plan to implement SocketChat based on `d
 **Goal:** Build the React application, integrating the API and WebSocket.
 
 ### Checklist
-- [ ] **Setup**
-    - [ ] Create Vite project (`react-ts`).
-    - [ ] Setup Tailwind CSS.
-- [ ] **State Management**
-    - [ ] Create `AuthContext` (Hardcoded login).
-    - [ ] Create `SocketContext` (Manage WS connection).
-    - [ ] Create `ChatContext` (Store messages/conversations).
+- [x] **Setup**
+    - [x] Create Vite project (`react-ts`).
+    - [x] Setup Tailwind CSS.
+- [x] **State Management**
+    - [x] Create `AuthContext` (Hardcoded login).
+    - [x] Create `SocketContext` (Manage WS connection).
+    - [x] Create `ChatContext` (Store messages/conversations).
 - [ ] **UI Components**
     - [ ] `Sidebar`: List Users/Groups + Presence Indicators.
     - [ ] `ChatWindow`: Message List + Input.

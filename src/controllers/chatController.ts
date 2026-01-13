@@ -38,9 +38,26 @@ export const sendMessage = async (req: Request, res: Response): Promise<void> =>
       return;
     }
 
-    // Verify conversation exists
-    const conversation = await Conversation.exists({ _id: conversation_id });
-    if (!conversation) {
+    // Verify conversation exists or create for DM
+    let conversation = await Conversation.findById(conversation_id);
+    
+    // Feature: Auto-create DM conversation if ID follows 'dm_' pattern and doesn't exist
+    if (!conversation && conversation_id.startsWith('dm_')) {
+         const participants = conversation_id.replace('dm_', '').split('_');
+         
+         // Create new Direct Message Conversation on the fly
+         if (participants.length === 2) {
+             const newConv = new Conversation({
+                 _id: conversation_id,
+                 conversation_type: 'DIRECT',
+                 participants: participants
+             });
+             conversation = await newConv.save();
+         } else {
+             res.status(400).json({ error: 'Invalid DM ID format.' });
+             return;
+         }
+    } else if (!conversation) {
       res.status(404).json({ error: 'Conversation not found.' });
       return;
     }
@@ -54,8 +71,14 @@ export const sendMessage = async (req: Request, res: Response): Promise<void> =>
     const savedMessage = await newMessage.save();
 
     await pubSubService.publish('chat:message', {
-      type: 'NEW_MESSAGE',
-      data: savedMessage
+        type: 'NEW_MESSAGE',
+        payload: {
+            conversation_id: savedMessage.conversation_id,
+            message_id: savedMessage._id,
+            sender_id: savedMessage.sender_id,
+            content: savedMessage.content,
+            created_at: savedMessage.createdAt,
+        }
     });
 
     res.status(200).json({
