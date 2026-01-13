@@ -38,9 +38,9 @@ This document outlines the step-by-step plan to implement SocketChat based on `d
     - [x] Connect `POST /chat/message` to WebSocket Broadcaster.
     - [x] Implement `NEW_MESSAGE` event broadcast.
 - [ ] **Presence/Heartbeat System**
-    - [ ] Implement `HEARTBEAT` handler.
-    - [ ] Redis keys: `SET user:{id}:online "1" EX 10`.
-    - [ ] Implement Presence Monitoring (Interval or Keyspace Notifications) to trigger `PRESENCE_UPDATE`.
+    - [x] Implement `HEARTBEAT` handler.
+    - [x] Redis keys: `SET user:{id}:online "1" EX 10`.
+    - [x] Implement Presence Monitoring (Interval or Keyspace Notifications) to trigger `PRESENCE_UPDATE`.
 
 ## Phase 3: Frontend Implementation
 **Goal:** Build the React application, integrating the API and WebSocket.
