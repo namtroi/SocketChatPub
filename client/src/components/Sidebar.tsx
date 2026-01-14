@@ -1,22 +1,26 @@
+import { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useChat } from '../contexts/ChatContext';
 import type { User, Conversation } from '../types';
+import CreateGroupModal from './CreateGroupModal';
 
 const Sidebar: React.FC = () => {
   const { currentUser, logout, availableUsers } = useAuth();
-  const { onlineUsers, setCurrentConversation } = useChat();
+  const { onlineUsers, setCurrentConversation, groups } = useChat();
+  const [showCreateGroup, setShowCreateGroup] = useState(false);
 
   // For now, treat clicking a user as starting a Direct Message conversation
-  // Ideally, we would fetch existing DM conversation ID here.
-  // This mock simplifies it by just selecting the user as target.
   const handleUserClick = (targetUser: User) => {
-    // Mock conversation object for now
     const mockConversation: Conversation = {
         _id: `dm_${[currentUser!.id, targetUser.id].sort().join('_')}`,
-        type: 'DIRECT',
+        conversation_type: 'DIRECT',
         participants: [currentUser!.id, targetUser.id]
     };
     setCurrentConversation(mockConversation);
+  };
+
+  const handleGroupClick = (group: Conversation) => {
+    setCurrentConversation(group);
   };
 
   return (
@@ -51,51 +55,98 @@ const Sidebar: React.FC = () => {
         </button>
       </div>
 
-      {/* Users List */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-2">
-        <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4 px-2">
-            Available Users
-        </h4>
-        
-        {availableUsers
-            .filter(u => u.id !== currentUser?.id)
-            .map((user) => {
-                const isOnline = onlineUsers.get(user.id) === 'ONLINE';
+      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        {/* Groups Section */}
+        <div>
+          <div className="flex items-center justify-between mb-3 px-2">
+            <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                Groups
+            </h4>
+            <button
+              onClick={() => setShowCreateGroup(true)}
+              className="text-xs text-blue-500 hover:text-blue-600 font-medium"
+            >
+              + New
+            </button>
+          </div>
+          
+          {groups.length === 0 ? (
+            <p className="text-xs text-gray-400 px-2">No groups yet</p>
+          ) : (
+            groups.map((group) => (
+              <button
+                key={group._id}
+                onClick={() => handleGroupClick(group)}
+                className="w-full flex items-center p-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-zinc-800 transition-all"
+              >
+                <div className="w-10 h-10 rounded-full bg-linear-to-br from-purple-500 to-indigo-600 flex items-center justify-center text-white font-medium text-sm">
+                  {group.conversation_name?.charAt(0).toUpperCase() || 'G'}
+                </div>
+                <div className="ml-3 text-left">
+                  <p className="font-medium text-gray-900 dark:text-gray-200">
+                    {group.conversation_name || 'Unnamed Group'}
+                  </p>
+                  <p className="text-xs text-gray-400">
+                    {group.participants.length} members
+                  </p>
+                </div>
+              </button>
+            ))
+          )}
+        </div>
 
-                return (
-                    <button
-                        key={user.id}
-                        onClick={() => handleUserClick(user)}
-                        className="w-full flex items-center p-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-zinc-800 transition-all group"
-                    >
-                        <div className="relative">
-                            <div
-                                className="w-10 h-10 rounded-full flex items-center justify-center text-white font-medium text-sm"
-                                style={{ backgroundColor: user.avatar_color || '#9CA3AF' }}
-                            >
-                                {user.name.charAt(0).toUpperCase()}
-                            </div>
-                            
-                            {/* Status Indicator */}
-                            <span 
-                                className={`absolute bottom-0 right-0 block w-3 h-3 rounded-full ring-2 ring-white dark:ring-zinc-900 ${
-                                    isOnline ? 'bg-green-500' : 'bg-gray-300 dark:bg-zinc-600'
-                                }`}
-                            ></span>
-                        </div>
+        {/* Users List */}
+        <div>
+          <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3 px-2">
+              Direct Messages
+          </h4>
+          
+          {availableUsers
+              .filter(u => u.id !== currentUser?.id)
+              .map((user) => {
+                  const isOnline = onlineUsers.get(user.id) === 'ONLINE';
 
-                        <div className="ml-3 text-left">
-                            <p className="font-medium text-gray-900 dark:text-gray-200">
-                                {user.name}
-                            </p>
-                            <p className="text-xs text-gray-400 dark:text-gray-500 truncate">
-                                {isOnline ? 'Active now' : 'Offline'}
-                            </p>
-                        </div>
-                    </button>
-                );
-            })}
+                  return (
+                      <button
+                          key={user.id}
+                          onClick={() => handleUserClick(user)}
+                          className="w-full flex items-center p-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-zinc-800 transition-all group"
+                      >
+                          <div className="relative">
+                              <div
+                                  className="w-10 h-10 rounded-full flex items-center justify-center text-white font-medium text-sm"
+                                  style={{ backgroundColor: user.avatar_color || '#9CA3AF' }}
+                              >
+                                  {user.name.charAt(0).toUpperCase()}
+                              </div>
+                              
+                              {/* Status Indicator */}
+                              <span 
+                                  className={`absolute bottom-0 right-0 block w-3 h-3 rounded-full ring-2 ring-white dark:ring-zinc-900 ${
+                                      isOnline ? 'bg-green-500' : 'bg-gray-300 dark:bg-zinc-600'
+                                  }`}
+                              ></span>
+                          </div>
+
+                          <div className="ml-3 text-left">
+                              <p className="font-medium text-gray-900 dark:text-gray-200">
+                                  {user.name}
+                              </p>
+                              <p className="text-xs text-gray-400 dark:text-gray-500 truncate">
+                                  {isOnline ? 'Active now' : 'Offline'}
+                              </p>
+                          </div>
+                      </button>
+                  );
+              })}
+        </div>
       </div>
+
+      {/* Create Group Modal */}
+      <CreateGroupModal 
+        isOpen={showCreateGroup} 
+        onClose={() => setShowCreateGroup(false)} 
+      />
     </div>
   );
 };

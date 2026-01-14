@@ -53,15 +53,15 @@ This document outlines the step-by-step plan to implement SocketChat based on `d
     - [x] Create `AuthContext` (Hardcoded login).
     - [x] Create `SocketContext` (Manage WS connection).
     - [x] Create `ChatContext` (Store messages/conversations).
-- [ ] **UI Components**
-    - [ ] `Sidebar`: List Users/Groups + Presence Indicators.
-    - [ ] `ChatWindow`: Message List + Input.
-    - [ ] `LoginModal`: Selector for test users.
-- [ ] **Integration**
-    - [ ] Fetch history on conversation select.
-    - [ ] Handle `NEW_MESSAGE` WS event (append to list).
-    - [ ] Handle `PRESENCE_UPDATE` WS event (update sidebar).
-    - [ ] Send Heartbeats every 5s.
+- [x] **UI Components**
+    - [x] `Sidebar`: List Users/Groups + Presence Indicators.
+    - [x] `ChatWindow`: Message List + Input.
+    - [x] `LoginModal`: Selector for test users.
+- [x] **Integration**
+    - [x] Fetch history on conversation select.
+    - [x] Handle `NEW_MESSAGE` WS event (append to list).
+    - [x] Handle `PRESENCE_UPDATE` WS event (update sidebar).
+    - [x] Send Heartbeats every 5s.
 
 ## Phase 4: Polish & Deployment
 **Goal:** Final testing and cleanup.

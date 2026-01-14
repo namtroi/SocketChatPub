@@ -13,7 +13,11 @@ export const createGroup = async (req: Request, res: Response): Promise<void> =>
       return;
     }
 
+    // Generate unique ID for group (schema expects String _id)
+    const groupId = `group_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
     const newGroup = new Conversation({
+      _id: groupId,
       conversation_type: 'GROUP',
       conversation_name: group_name,
       participants: user_list,
@@ -39,7 +43,8 @@ export const sendMessage = async (req: Request, res: Response): Promise<void> =>
     }
 
     // Verify conversation exists or create for DM
-    let conversation = await Conversation.findById(conversation_id);
+    // Use findOne to handle both ObjectId and custom string IDs (like dm_xxx)
+    let conversation = await Conversation.findOne({ _id: conversation_id });
     
     // Feature: Auto-create DM conversation if ID follows 'dm_' pattern and doesn't exist
     if (!conversation && conversation_id.startsWith('dm_')) {
@@ -78,6 +83,7 @@ export const sendMessage = async (req: Request, res: Response): Promise<void> =>
             sender_id: savedMessage.sender_id,
             content: savedMessage.content,
             created_at: savedMessage.createdAt,
+            participants: conversation.participants, // For targeted broadcast
         }
     });
 
@@ -124,4 +130,27 @@ export const getHistory = async (req: Request, res: Response): Promise<void> => 
   }
 };
 
+/**
+ * Get all GROUP conversations where user is a participant
+ * GET /chat/groups?user_id=xxx
+ */
+export const getGroups = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const user_id = req.query.user_id as string || req.headers['x-user-id'] as string;
 
+    if (!user_id) {
+      res.status(400).json({ error: 'user_id is required' });
+      return;
+    }
+
+    const groups = await Conversation.find({
+      conversation_type: 'GROUP',
+      participants: user_id
+    });
+
+    res.status(200).json({ groups });
+  } catch (error) {
+    console.error('Error fetching groups:', error);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+};

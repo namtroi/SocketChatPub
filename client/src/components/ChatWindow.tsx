@@ -1,22 +1,61 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useRef, useLayoutEffect } from 'react';
 import { useChat } from '../contexts/ChatContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useSocket } from '../contexts/SocketContext';
 
 const ChatWindow: React.FC = () => {
-    const { currentUser } = useAuth();
-    const { currentConversation, messages, sendMessage, onlineUsers } = useChat();
+    const { currentUser, availableUsers } = useAuth();
+    const { currentConversation, messages, sendMessage, onlineUsers, hasMoreMessages, isLoadingMore, loadMoreMessages } = useChat();
     const { isConnected } = useSocket();
     const [inputValue, setInputValue] = useState('');
     const messagesEndRef = useRef<HTMLDivElement>(null);
+    const messagesContainerRef = useRef<HTMLDivElement>(null);
+    const prevMessageCountRef = useRef<number>(0);
+    const prevScrollHeightRef = useRef<number>(0);
+
+    // Helper to get user name from ID
+    const getUserName = (userId: string): string => {
+        const user = availableUsers.find(u => u.id === userId);
+        return user?.name || userId;
+    };
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     };
 
-    useEffect(() => {
-        scrollToBottom();
+    // Handle scroll position after messages change
+    useLayoutEffect(() => {
+        const container = messagesContainerRef.current;
+        if (!container) return;
+
+        const prevCount = prevMessageCountRef.current;
+        const currentCount = messages.length;
+        
+        // If older messages were prepended (count increased but we loaded more)
+        if (prevScrollHeightRef.current > 0 && currentCount > prevCount) {
+            // Preserve scroll position by adjusting for new content height
+            const heightDiff = container.scrollHeight - prevScrollHeightRef.current;
+            container.scrollTop = heightDiff;
+            prevScrollHeightRef.current = 0;
+        } else if (currentCount > prevCount && prevCount > 0) {
+            // New message added at end - scroll to bottom
+            scrollToBottom();
+        } else if (prevCount === 0 && currentCount > 0) {
+            // Initial load - scroll to bottom
+            scrollToBottom();
+        }
+        
+        prevMessageCountRef.current = currentCount;
     }, [messages]);
+
+    // Save scroll height before loading more (called by button click)
+    const handleLoadMore = () => {
+        const container = messagesContainerRef.current;
+        if (container) {
+            prevScrollHeightRef.current = container.scrollHeight;
+        }
+        loadMoreMessages();
+    };
 
     const handleSend = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -44,9 +83,15 @@ const ChatWindow: React.FC = () => {
         );
     }
 
-    // Determine basic info about the chat partner (Assuming DM for now)
-    const otherUserId = currentConversation.participants.find(p => p !== currentUser?.id);
+    // Determine display info based on conversation type
+    const isGroup = currentConversation.conversation_type === 'GROUP';
+    const otherUserId = !isGroup ? currentConversation.participants.find(p => p !== currentUser?.id) : null;
     const isPartnerOnline = otherUserId ? onlineUsers.get(otherUserId) === 'ONLINE' : false;
+    
+    // Count online members for group
+    const onlineMemberCount = isGroup 
+      ? currentConversation.participants.filter(p => onlineUsers.get(p) === 'ONLINE').length
+      : 0;
 
     return (
         <div className="flex-1 flex flex-col bg-gray-50 dark:bg-black h-full">
@@ -55,10 +100,17 @@ const ChatWindow: React.FC = () => {
                 <div className="flex items-center">
                    <div>
                         <h3 className="font-bold text-gray-900 dark:text-white text-lg">
-                           Chat {otherUserId ? `with ${otherUserId}` : ''} 
-                           {/* Ideally map ID to Name here using a User Map if available globally */}
+                           {isGroup 
+                             ? currentConversation.conversation_name || 'Unnamed Group'
+                             : `Chat with ${otherUserId ? getUserName(otherUserId) : ''}`
+                           }
                         </h3>
-                        {otherUserId && (
+                        {isGroup ? (
+                            <p className="text-xs text-gray-400">
+                                {currentConversation.participants.length} members
+                                {onlineMemberCount > 0 && ` · ${onlineMemberCount} online`}
+                            </p>
+                        ) : otherUserId && (
                             <p className="text-xs text-green-500 font-medium flex items-center">
                                 {isPartnerOnline ? (
                                     <>
@@ -83,7 +135,20 @@ const ChatWindow: React.FC = () => {
             </div>
 
             {/* Messages Area */}
-            <div className="flex-1 overflow-y-auto p-6 space-y-4">
+            <div ref={messagesContainerRef} className="flex-1 overflow-y-auto p-6 space-y-4">
+                {/* Load More Button - click to load older messages */}
+                {hasMoreMessages && (
+                    <div className="flex justify-center mb-4">
+                        <button
+                            onClick={handleLoadMore}
+                            disabled={isLoadingMore}
+                            className="px-4 py-2 text-sm text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 dark:bg-zinc-800 dark:text-blue-400 dark:hover:bg-zinc-700 rounded-lg transition-colors disabled:opacity-50"
+                        >
+                            {isLoadingMore ? 'Loading...' : 'Load older messages'}
+                        </button>
+                    </div>
+                )}
+
                 {messages.length === 0 ? (
                     <div className="flex flex-col items-center justify-center h-full text-gray-400 opacity-50">
                         <p>No messages yet. Say hello!</p>
@@ -91,22 +156,47 @@ const ChatWindow: React.FC = () => {
                 ) : (
                     messages.map((msg, index) => {
                         const isMe = msg.sender_id === currentUser?.id;
+                        const senderName = getUserName(msg.sender_id);
+                        const senderUser = availableUsers.find(u => u.id === msg.sender_id);
+                        const avatarColor = senderUser?.avatar_color || '#9CA3AF';
+
                         return (
                             <div 
                                 key={msg._id || index} 
                                 className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}
                             >
-                                <div 
-                                    className={`max-w-[70%] rounded-2xl px-5 py-3 shadow-sm ${
-                                        isMe 
-                                        ? 'bg-blue-600 text-white rounded-br-none' 
-                                        : 'bg-white dark:bg-zinc-800 text-gray-900 dark:text-gray-100 rounded-bl-none border border-gray-100 dark:border-zinc-700'
-                                    }`}
-                                >
-                                    <p className="text-sm leading-relaxed">{msg.content}</p>
-                                    <p className={`text-[10px] mt-1 text-right ${isMe ? 'text-blue-200' : 'text-gray-400'}`}>
-                                        {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                    </p>
+                                <div className={`flex ${isMe ? 'flex-row-reverse' : 'flex-row'} items-end gap-2 max-w-[80%]`}>
+                                    {/* Avatar */}
+                                    {!isMe && (
+                                        <div 
+                                            className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-medium shrink-0"
+                                            style={{ backgroundColor: avatarColor }}
+                                        >
+                                            {senderName.charAt(0).toUpperCase()}
+                                        </div>
+                                    )}
+                                    
+                                    {/* Message Bubble */}
+                                    <div className="flex flex-col">
+                                        {/* Sender Name (only for others in group chats) */}
+                                        {!isMe && isGroup && (
+                                            <span className="text-xs text-gray-500 dark:text-gray-400 ml-1 mb-1">
+                                                {senderName}
+                                            </span>
+                                        )}
+                                        <div 
+                                            className={`rounded-2xl px-4 py-2.5 shadow-sm ${
+                                                isMe 
+                                                ? 'bg-blue-600 text-white rounded-br-none' 
+                                                : 'bg-white dark:bg-zinc-800 text-gray-900 dark:text-gray-100 rounded-bl-none border border-gray-100 dark:border-zinc-700'
+                                            }`}
+                                        >
+                                            <p className="text-sm leading-relaxed">{msg.content}</p>
+                                            <p className={`text-[10px] mt-1 text-right ${isMe ? 'text-blue-200' : 'text-gray-400'}`}>
+                                                {new Date(msg.createdAt || msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                            </p>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         );

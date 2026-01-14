@@ -10,13 +10,14 @@ export interface Message {
   sender_id: string;
   content: string;
   created_at: string;
+  createdAt?: string;  // MongoDB uses createdAt, WS events use created_at
 }
 
 export interface Conversation {
   _id: string;
-  type: "GROUP" | "DIRECT";
+  conversation_type: "GROUP" | "DIRECT"; // Match backend schema
   participants: string[];
-  name?: string;
+  conversation_name?: string;
 }
 
 // WebSocket Event Types
@@ -36,8 +37,7 @@ export interface NewMessagePayload {
 }
 
 export interface PresenceUpdatePayload {
-  user_id: string;
-  status: "ONLINE" | "OFFLINE";
+  onlineUsers: string[];
 }
 
 // REST API Types

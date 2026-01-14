@@ -7,12 +7,17 @@ import { API_BASE } from '../config';
 
 interface ChatContextType {
   conversations: Conversation[];
+  groups: Conversation[];  // GROUP type conversations
   currentConversation: Conversation | null;
   messages: Message[];
   onlineUsers: Map<string, string>; // userId -> status
+  hasMoreMessages: boolean;  // Pagination: more messages available
+  isLoadingMore: boolean;    // Loading state for pagination
   setCurrentConversation: (conversation: Conversation | null) => void;
   sendMessage: (content: string) => Promise<void>;
   createGroup: (name: string, members: string[]) => Promise<void>;
+  fetchGroups: () => Promise<void>;
+  loadMoreMessages: () => Promise<void>;  // Pagination: load older messages
 }
 
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
@@ -22,9 +27,35 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const { currentUser } = useAuth();
   
   const [conversations] = useState<Conversation[]>([]);
+  const [groups, setGroups] = useState<Conversation[]>([]);
   const [currentConversation, setCurrentConversation] = useState<Conversation | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [onlineUsers, setOnlineUsers] = useState<Map<string, string>>(new Map());
+  const [nextCursor, setNextCursor] = useState<string | null>(null);  // Pagination cursor
+  const [hasMoreMessages, setHasMoreMessages] = useState(false);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+
+  // Fetch groups when user logs in
+  const fetchGroups = async () => {
+    if (!currentUser) return;
+    try {
+      const res = await fetch(`${API_BASE}/chat/groups?user_id=${currentUser.id}`);
+      const data = await res.json();
+      if (res.ok) {
+        setGroups(data.groups);
+      }
+    } catch (err) {
+      console.error('Failed to fetch groups:', err);
+    }
+  };
+
+  // Fetch groups on mount
+  useEffect(() => {
+    if (currentUser) {
+      fetchGroups();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser]);
 
   // Listen for WebSocket events
   useEffect(() => {
@@ -37,8 +68,11 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         switch (data.type) {
           case 'NEW_MESSAGE': {
             const msgPayload = data.payload as NewMessagePayload;
-            // Only append if it belongs to the current conversation
-            if (currentConversation && currentConversation._id === msgPayload.conversation_id) {
+            // Only append if it belongs to the current conversation AND is not from self
+            // (sender already sees message optimistically or via HTTP response)
+            if (currentConversation && 
+                currentConversation._id === msgPayload.conversation_id &&
+                msgPayload.sender_id !== currentUser?.id) {
                 setMessages((prev) => [...prev, {
                     _id: msgPayload.message_id,
                     conversation_id: msgPayload.conversation_id,
@@ -52,9 +86,17 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
           case 'PRESENCE_UPDATE': {
             const presencePayload = data.payload as PresenceUpdatePayload;
-            setOnlineUsers((prev) => {
-              const newMap = new Map(prev);
-              newMap.set(presencePayload.user_id, presencePayload.status);
+            
+            if (!presencePayload || !presencePayload.onlineUsers) {
+                console.warn('Received invalid PRESENCE_UPDATE payload:', data);
+                break;
+            }
+
+            setOnlineUsers(() => {
+              const newMap = new Map(); // Reset map based on current full list
+              presencePayload.onlineUsers.forEach(uid => {
+                  newMap.set(uid, 'ONLINE');
+              });
               return newMap;
             });
             break;
@@ -73,21 +115,26 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     return () => {
       socket.removeEventListener('message', handleMessage);
     };
-  }, [socket, currentConversation]);
+  }, [socket, currentConversation, currentUser?.id]);
 
   // Fetch History when Current Conversation Changes
   useEffect(() => {
     if (!currentConversation) {
         setTimeout(() => setMessages([]), 0);
+        setNextCursor(null);
+        setHasMoreMessages(false);
         return;
     }
 
     const fetchHistory = async () => {
         try {
-            const res = await fetch(`${API_BASE}/chat/history?conversation_id=${currentConversation._id}`);
+            const res = await fetch(`${API_BASE}/chat/history?conversation_id=${currentConversation._id}&limit=20`);
             const data = await res.json();
             if (res.ok) {
-                setMessages(data.history);
+                // Reverse to show oldest first (API returns newest first for pagination)
+                setMessages(data.history.reverse());
+                setNextCursor(data.next_cursor);
+                setHasMoreMessages(!!data.next_cursor);
             }
         } catch (err) {
             console.error('Failed to fetch history', err);
@@ -97,18 +144,56 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     fetchHistory();
   }, [currentConversation]);
 
+  // Load more (older) messages - pagination
+  const loadMoreMessages = async () => {
+    if (!currentConversation || !nextCursor || isLoadingMore) return;
+    
+    setIsLoadingMore(true);
+    try {
+      const res = await fetch(
+        `${API_BASE}/chat/history?conversation_id=${currentConversation._id}&limit=20&cursor=${nextCursor}`
+      );
+      const data = await res.json();
+      if (res.ok) {
+        // Prepend older messages to the beginning (reversed because API returns newest first)
+        setMessages((prev) => [...data.history.reverse(), ...prev]);
+        setNextCursor(data.next_cursor);
+        setHasMoreMessages(!!data.next_cursor);
+      }
+    } catch (err) {
+      console.error('Failed to load more messages:', err);
+    } finally {
+      setIsLoadingMore(false);
+    }
+  };
+
   const sendMessage = async (content: string) => {
     if (!currentConversation || !currentUser) return;
     
     try {
-        await fetch(`${API_BASE}/chat/message`, {
+        const res = await fetch(`${API_BASE}/chat/message`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+                'Content-Type': 'application/json',
+                'x-user-id': currentUser.id  // Identify sender to backend
+            },
             body: JSON.stringify({
                 conversation_id: currentConversation._id,
                 content
             })
         });
+        
+        // Optimistically add message to UI on success
+        if (res.ok) {
+            const data = await res.json();
+            setMessages((prev) => [...prev, {
+                _id: data.message_id,
+                conversation_id: currentConversation._id,
+                sender_id: currentUser.id,
+                content,
+                created_at: data.timestamp
+            }]);
+        }
     } catch (err) {
         console.error('Failed to send message', err);
     }
@@ -133,13 +218,18 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   return (
     <ChatContext.Provider value={{ 
-        conversations, 
+        conversations,
+        groups,
         currentConversation, 
         messages, 
-        onlineUsers, 
+        onlineUsers,
+        hasMoreMessages,
+        isLoadingMore,
         setCurrentConversation, 
         sendMessage,
-        createGroup 
+        createGroup,
+        fetchGroups,
+        loadMoreMessages
     }}>
       {children}
     </ChatContext.Provider>

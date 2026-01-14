@@ -12,10 +12,10 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const HARDCODED_USERS: User[] = [
-  { id: 'u1', name: 'Alice', avatar_color: 'bg-red-500' },
-  { id: 'u2', name: 'Bob', avatar_color: 'bg-blue-500' },
-  { id: 'u3', name: 'Charlie', avatar_color: 'bg-green-500' },
-  { id: 'u4', name: 'David', avatar_color: 'bg-yellow-500' },
+  { id: 'u1', name: 'Alice', avatar_color: '#EF4444' },   // red-500
+  { id: 'u2', name: 'Bob', avatar_color: '#3B82F6' },     // blue-500
+  { id: 'u3', name: 'Charlie', avatar_color: '#22C55E' }, // green-500
+  { id: 'u4', name: 'David', avatar_color: '#EAB308' },   // yellow-500
 ];
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {

@@ -3,6 +3,8 @@ import { redisClient } from '../config/redis';
 class PubSubService {
   private subscriber;
   private publisher;
+  private isConnected = false;
+  private connectPromise: Promise<void> | null = null;
 
   constructor() {
     // Publisher uses the existing main client
@@ -12,18 +14,22 @@ class PubSubService {
     this.subscriber = redisClient.duplicate();
 
     this.subscriber.on('error', (err) => console.error('Redis Subscriber Error:', err));
-    
-    // Connect the subscriber immediately
-    this.init();
   }
 
-  private async init() {
-    try {
-        await this.subscriber.connect();
+  /**
+   * Ensure subscriber is connected before use
+   */
+  async ensureConnected(): Promise<void> {
+    if (this.isConnected) return;
+    
+    if (!this.connectPromise) {
+      this.connectPromise = this.subscriber.connect().then(() => {
+        this.isConnected = true;
         console.log('Redis Subscriber Connected');
-    } catch (err) {
-        console.error('Failed to connect Redis Subscriber:', err);
+      });
     }
+    
+    await this.connectPromise;
   }
 
   /**
@@ -42,6 +48,7 @@ class PubSubService {
    * @param callback The function to call when a message is received
    */
   async subscribe(channel: string, callback: (message: string) => void): Promise<void> {
+    await this.ensureConnected();
     await this.subscriber.subscribe(channel, (message) => {
       callback(message);
     });
