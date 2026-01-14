@@ -1,9 +1,17 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react';
 import type { ReactNode } from 'react';
 import { useSocket } from './SocketContext';
 import { useAuth } from './AuthContext';
 import type { Conversation, Message, WSEvent, NewMessagePayload, PresenceUpdatePayload } from '../types';
 import { API_BASE } from '../config';
+
+// Notification event info passed to callback
+export interface NotificationEventInfo {
+  conversationId: string;
+  senderId: string;
+  senderName: string;
+  content: string;
+}
 
 interface ChatContextType {
   conversations: Conversation[];
@@ -13,18 +21,22 @@ interface ChatContextType {
   onlineUsers: Map<string, string>; // userId -> status
   hasMoreMessages: boolean;  // Pagination: more messages available
   isLoadingMore: boolean;    // Loading state for pagination
+  unreadCounts: Map<string, number>;  // conversationId -> unread count
+  totalUnread: number;  // Sum of all unread counts
   setCurrentConversation: (conversation: Conversation | null) => void;
   sendMessage: (content: string) => Promise<void>;
   createGroup: (name: string, members: string[]) => Promise<void>;
   fetchGroups: () => Promise<void>;
   loadMoreMessages: () => Promise<void>;  // Pagination: load older messages
+  markAsRead: (conversationId: string) => void;  // Mark conversation as read
+  onNewMessageNotification: (callback: (info: NotificationEventInfo) => void) => () => void;  // Subscribe to new message events
 }
 
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
 
 export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const { socket } = useSocket();
-  const { currentUser } = useAuth();
+  const { currentUser, availableUsers } = useAuth();
   
   const [conversations] = useState<Conversation[]>([]);
   const [groups, setGroups] = useState<Conversation[]>([]);
@@ -34,6 +46,48 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [nextCursor, setNextCursor] = useState<string | null>(null);  // Pagination cursor
   const [hasMoreMessages, setHasMoreMessages] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [unreadCounts, setUnreadCounts] = useState<Map<string, number>>(new Map());
+  
+  // Notification callbacks - stored in ref to avoid re-renders
+  const [notificationCallbacks, setNotificationCallbacks] = useState<Set<(info: NotificationEventInfo) => void>>(new Set());
+
+  // Calculate total unread count
+  const totalUnread = useMemo(() => {
+    let total = 0;
+    unreadCounts.forEach(count => {
+      total += count;
+    });
+    return total;
+  }, [unreadCounts]);
+
+  // Mark a conversation as read
+  const markAsRead = useCallback((conversationId: string) => {
+    setUnreadCounts(prev => {
+      const newMap = new Map(prev);
+      newMap.delete(conversationId);
+      return newMap;
+    });
+  }, []);
+
+  // Subscribe to new message notification events
+  const onNewMessageNotification = useCallback((callback: (info: NotificationEventInfo) => void) => {
+    setNotificationCallbacks(prev => new Set(prev).add(callback));
+    
+    // Return unsubscribe function
+    return () => {
+      setNotificationCallbacks(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(callback);
+        return newSet;
+      });
+    };
+  }, []);
+
+  // Helper to get sender name
+  const getSenderName = useCallback((senderId: string): string => {
+    const user = availableUsers.find(u => u.id === senderId);
+    return user?.name || senderId;
+  }, [availableUsers]);
 
   // Fetch groups when user logs in
   const fetchGroups = async () => {
@@ -68,11 +122,14 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         switch (data.type) {
           case 'NEW_MESSAGE': {
             const msgPayload = data.payload as NewMessagePayload;
-            // Only append if it belongs to the current conversation AND is not from self
-            // (sender already sees message optimistically or via HTTP response)
-            if (currentConversation && 
-                currentConversation._id === msgPayload.conversation_id &&
-                msgPayload.sender_id !== currentUser?.id) {
+            const isFromSelf = msgPayload.sender_id === currentUser?.id;
+            const isCurrentConversation = currentConversation?._id === msgPayload.conversation_id;
+            
+            // Skip messages from self
+            if (isFromSelf) break;
+            
+            if (isCurrentConversation) {
+                // Append to messages if viewing this conversation
                 setMessages((prev) => [...prev, {
                     _id: msgPayload.message_id,
                     conversation_id: msgPayload.conversation_id,
@@ -80,6 +137,23 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                     content: msgPayload.content,
                     created_at: msgPayload.created_at
                 }]);
+            } else {
+                // Increment unread count for other conversations
+                setUnreadCounts(prev => {
+                    const newMap = new Map(prev);
+                    const currentCount = newMap.get(msgPayload.conversation_id) || 0;
+                    newMap.set(msgPayload.conversation_id, currentCount + 1);
+                    return newMap;
+                });
+                
+                // Trigger notification callbacks
+                const notificationInfo: NotificationEventInfo = {
+                    conversationId: msgPayload.conversation_id,
+                    senderId: msgPayload.sender_id,
+                    senderName: getSenderName(msgPayload.sender_id),
+                    content: msgPayload.content
+                };
+                notificationCallbacks.forEach(callback => callback(notificationInfo));
             }
             break;
           }
@@ -115,7 +189,7 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     return () => {
       socket.removeEventListener('message', handleMessage);
     };
-  }, [socket, currentConversation, currentUser?.id]);
+  }, [socket, currentConversation, currentUser?.id, getSenderName, notificationCallbacks]);
 
   // Fetch History when Current Conversation Changes
   useEffect(() => {
@@ -216,6 +290,14 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
   };
 
+  // Wrapper to also mark as read when setting current conversation
+  const handleSetCurrentConversation = useCallback((conversation: Conversation | null) => {
+    setCurrentConversation(conversation);
+    if (conversation) {
+      markAsRead(conversation._id);
+    }
+  }, [markAsRead]);
+
   return (
     <ChatContext.Provider value={{ 
         conversations,
@@ -225,11 +307,15 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         onlineUsers,
         hasMoreMessages,
         isLoadingMore,
-        setCurrentConversation, 
+        unreadCounts,
+        totalUnread,
+        setCurrentConversation: handleSetCurrentConversation, 
         sendMessage,
         createGroup,
         fetchGroups,
-        loadMoreMessages
+        loadMoreMessages,
+        markAsRead,
+        onNewMessageNotification
     }}>
       {children}
     </ChatContext.Provider>

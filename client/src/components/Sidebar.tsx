@@ -6,8 +6,13 @@ import CreateGroupModal from './CreateGroupModal';
 
 const Sidebar: React.FC = () => {
   const { currentUser, logout, availableUsers } = useAuth();
-  const { onlineUsers, setCurrentConversation, groups } = useChat();
+  const { onlineUsers, setCurrentConversation, groups, unreadCounts } = useChat();
   const [showCreateGroup, setShowCreateGroup] = useState(false);
+
+  // Helper to get DM conversation ID
+  const getDmConversationId = (targetUserId: string): string => {
+    return `dm_${[currentUser!.id, targetUserId].sort().join('_')}`;
+  };
 
   // For now, treat clicking a user as starting a Direct Message conversation
   const handleUserClick = (targetUser: User) => {
@@ -73,25 +78,37 @@ const Sidebar: React.FC = () => {
           {groups.length === 0 ? (
             <p className="text-xs text-gray-400 px-2">No groups yet</p>
           ) : (
-            groups.map((group) => (
-              <button
-                key={group._id}
-                onClick={() => handleGroupClick(group)}
-                className="w-full flex items-center p-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-zinc-800 transition-all"
-              >
-                <div className="w-10 h-10 rounded-full bg-linear-to-br from-purple-500 to-indigo-600 flex items-center justify-center text-white font-medium text-sm">
-                  {group.conversation_name?.charAt(0).toUpperCase() || 'G'}
-                </div>
-                <div className="ml-3 text-left">
-                  <p className="font-medium text-gray-900 dark:text-gray-200">
-                    {group.conversation_name || 'Unnamed Group'}
-                  </p>
-                  <p className="text-xs text-gray-400">
-                    {group.participants.length} members
-                  </p>
-                </div>
-              </button>
-            ))
+            groups.map((group) => {
+              const unreadCount = unreadCounts.get(group._id) || 0;
+              
+              return (
+                <button
+                  key={group._id}
+                  onClick={() => handleGroupClick(group)}
+                  className="w-full flex items-center p-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-zinc-800 transition-all"
+                >
+                  <div className="relative">
+                    <div className="w-10 h-10 rounded-full bg-linear-to-br from-purple-500 to-indigo-600 flex items-center justify-center text-white font-medium text-sm">
+                      {group.conversation_name?.charAt(0).toUpperCase() || 'G'}
+                    </div>
+                    {/* Unread Badge */}
+                    {unreadCount > 0 && (
+                      <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1 shadow-sm animate-pulse">
+                        {unreadCount > 99 ? '99+' : unreadCount}
+                      </span>
+                    )}
+                  </div>
+                  <div className="ml-3 text-left flex-1">
+                    <p className="font-medium text-gray-900 dark:text-gray-200">
+                      {group.conversation_name || 'Unnamed Group'}
+                    </p>
+                    <p className="text-xs text-gray-400">
+                      {group.participants.length} members
+                    </p>
+                  </div>
+                </button>
+              );
+            })
           )}
         </div>
 
@@ -105,6 +122,8 @@ const Sidebar: React.FC = () => {
               .filter(u => u.id !== currentUser?.id)
               .map((user) => {
                   const isOnline = onlineUsers.get(user.id) === 'ONLINE';
+                  const dmConversationId = getDmConversationId(user.id);
+                  const unreadCount = unreadCounts.get(dmConversationId) || 0;
 
                   return (
                       <button
@@ -120,20 +139,30 @@ const Sidebar: React.FC = () => {
                                   {user.name.charAt(0).toUpperCase()}
                               </div>
                               
-                              {/* Status Indicator */}
-                              <span 
-                                  className={`absolute bottom-0 right-0 block w-3 h-3 rounded-full ring-2 ring-white dark:ring-zinc-900 ${
-                                      isOnline ? 'bg-green-500' : 'bg-gray-300 dark:bg-zinc-600'
-                                  }`}
-                              ></span>
+                              {/* Unread Badge (priority over status) */}
+                              {unreadCount > 0 ? (
+                                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1 shadow-sm animate-pulse">
+                                  {unreadCount > 99 ? '99+' : unreadCount}
+                                </span>
+                              ) : (
+                                /* Status Indicator */
+                                <span 
+                                    className={`absolute bottom-0 right-0 block w-3 h-3 rounded-full ring-2 ring-white dark:ring-zinc-900 ${
+                                        isOnline ? 'bg-green-500' : 'bg-gray-300 dark:bg-zinc-600'
+                                    }`}
+                                ></span>
+                              )}
                           </div>
 
-                          <div className="ml-3 text-left">
+                          <div className="ml-3 text-left flex-1">
                               <p className="font-medium text-gray-900 dark:text-gray-200">
                                   {user.name}
                               </p>
                               <p className="text-xs text-gray-400 dark:text-gray-500 truncate">
-                                  {isOnline ? 'Active now' : 'Offline'}
+                                  {unreadCount > 0 
+                                    ? `${unreadCount} new message${unreadCount > 1 ? 's' : ''}`
+                                    : isOnline ? 'Active now' : 'Offline'
+                                  }
                               </p>
                           </div>
                       </button>
